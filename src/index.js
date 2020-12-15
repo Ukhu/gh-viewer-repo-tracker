@@ -5,6 +5,7 @@ import { HttpLink } from 'apollo-link-http';
 import { InMemoryCache } from 'apollo-cache-inmemory';
 import { ApolloProvider } from 'react-apollo';
 import { RetryLink } from 'apollo-link-retry';
+import { onError } from 'apollo-link-error';
 import { ApolloLink } from 'apollo-link';
 import './index.css';
 import App from './App';
@@ -31,7 +32,19 @@ const retryLink = new RetryLink({
   }
 })
 
-const link = ApolloLink.from([retryLink, httpLink]);
+const errorLink = onError(({graphQLErrors, networkError}) => {
+  if (graphQLErrors) {
+    graphQLErrors.forEach(({message}) => {
+      console.log('[GraphQL Error]: ' + message)
+    })
+  }
+
+  if (networkError) {
+    console.log('[Network Error]: ' + networkError)
+  }
+})
+
+const link = ApolloLink.from([errorLink, retryLink, httpLink]);
 
 const cache = new InMemoryCache();
 
