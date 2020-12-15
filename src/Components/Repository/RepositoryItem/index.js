@@ -2,16 +2,81 @@ import { Mutation } from 'react-apollo';
 import Link from '../../Link';
 import Button from '../../Button';
 import { STAR_REPOSITORY, UNSTAR_REPOSITORY, WATCH_REPOSITORY } from '../../../GraphQL/mutations';
+import { REPOSITORY_FRAGMENT } from '../../../GraphQL/fragments';
 
 import '../style.css';
 
 const VIEWER_SUBSCRIPTIONS = {
-  SUBSCRIBED: 'SUBSCRIBED',
-  UNSUBSCRIBED: 'UNSUBSCRIBED',
+  subscribed: 'SUBSCRIBED',
+  unsubscribed: 'UNSUBSCRIBED',
 };
 
-const isWatch = (viewerSubscription) =>
-  viewerSubscription === VIEWER_SUBSCRIPTIONS.SUBSCRIBED;
+function isWatch(viewerSubscription) {
+  return viewerSubscription === VIEWER_SUBSCRIPTIONS.subscribed;
+}
+
+function updateWatch(client, mutationResult) {
+  const { updateSubscription: { subscribable: { id, viewerSubscription }}} = mutationResult.data;
+
+  const cachedRepository = client.readFragment({
+    id: `Repository:${id}`,
+    fragment: REPOSITORY_FRAGMENT,
+  })
+
+  let { totalCount } = cachedRepository.watchers;
+
+  totalCount = viewerSubscription === VIEWER_SUBSCRIPTIONS.subscribed ? totalCount + 1 : totalCount - 1;
+
+  client.writeFragment({
+    id: `Repository:${id}`,
+    fragment: REPOSITORY_FRAGMENT,
+    data: {
+      ...cachedRepository,
+      watchers: {
+        ...cachedRepository.watchers,
+        totalCount
+      }
+    }
+  })
+}
+
+function updateAddStar(client, mutationResult) {
+  const { addStar: { starrable: { id, viewerHasStarred } }} = mutationResult.data;
+
+  client.writeFragment({
+    id: `Repository:${id}`,
+    fragment: REPOSITORY_FRAGMENT,
+    data: getUpdatedStarData(client, id, viewerHasStarred)
+  })
+}
+
+function updateRemoveStar(client, mutationResult) {
+  const { removeStar: { starrable: { id, viewerHasStarred } }} = mutationResult.data;
+
+  client.writeFragment({
+    id: `Repository:${id}`,
+    fragment: REPOSITORY_FRAGMENT,
+    data: getUpdatedStarData(client, id, viewerHasStarred)
+  })
+}
+
+function getUpdatedStarData(client, id, viewerHasStarred) {
+  const cachedRepository = client.readFragment({
+    id: `Repository:${id}`,
+    fragment: REPOSITORY_FRAGMENT,
+  });
+
+  let { totalCount } = cachedRepository.stargazers;
+  totalCount = viewerHasStarred ? totalCount + 1 : totalCount - 1;
+
+  return {
+    ...cachedRepository,
+    stargazers: {
+      ...cachedRepository.stargazers,
+      totalCount,
+    },
+  };
+};
 
 const RepositoryItem = ({
   id,
@@ -37,9 +102,10 @@ const RepositoryItem = ({
           variables={{
             id,
             viewerSubscription: isWatch(viewerSubscription)
-              ? VIEWER_SUBSCRIPTIONS.UNSUBSCRIBED
-              : VIEWER_SUBSCRIPTIONS.SUBSCRIBED,
-          }}>
+              ? VIEWER_SUBSCRIPTIONS.unsubscribed
+              : VIEWER_SUBSCRIPTIONS.subscribed,
+          }}
+          update={updateWatch}>
           {(updateSubscription, { data, loading, error }) => {
             if (error) {
               console.log(error.toString());
@@ -58,7 +124,10 @@ const RepositoryItem = ({
         </Mutation>
 
         { !viewerHasStarred ? (
-          <Mutation mutation={STAR_REPOSITORY} variables={{ id }}>
+          <Mutation
+            mutation={STAR_REPOSITORY}
+            variables={{ id }}
+            update={updateAddStar}>
             {(addStar) => (
               <Button 
                 className={'RepositoryItem-title-action'}
@@ -68,7 +137,9 @@ const RepositoryItem = ({
             )}
           </Mutation> 
         ) : (
-          <Mutation mutation={UNSTAR_REPOSITORY}>
+          <Mutation
+            mutation={UNSTAR_REPOSITORY}
+            update={updateRemoveStar}>
             {(removeStar) => (
               <Button
                 className={'RepositoryItem-title-action'}
