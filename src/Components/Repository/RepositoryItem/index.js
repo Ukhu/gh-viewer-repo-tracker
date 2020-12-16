@@ -105,6 +105,18 @@ const RepositoryItem = ({
               ? VIEWER_SUBSCRIPTIONS.unsubscribed
               : VIEWER_SUBSCRIPTIONS.subscribed,
           }}
+          optimisticResponse={{
+            updateSubscription: {
+              __typename: 'Mutation',
+              subscribable: {
+                __typename: 'Repository',
+                id,
+                viewerSubscription: isWatch(viewerSubscription)
+                ? VIEWER_SUBSCRIPTIONS.unsubscribed
+                : VIEWER_SUBSCRIPTIONS.subscribed
+              }
+            }
+          }}
           update={updateWatch}>
           {(updateSubscription, { data, loading, error }) => {
             if (error) {
@@ -127,6 +139,16 @@ const RepositoryItem = ({
           <Mutation
             mutation={STAR_REPOSITORY}
             variables={{ id }}
+            optimisticResponse={{
+              addStar: {
+                __typename: 'Mutation',
+                starrable: {
+                  __typename: 'Repository',
+                  id,
+                  viewerHasStarred: !viewerHasStarred,
+                },
+              },
+            }}
             update={updateAddStar}>
             {(addStar) => (
               <Button 
@@ -139,6 +161,16 @@ const RepositoryItem = ({
         ) : (
           <Mutation
             mutation={UNSTAR_REPOSITORY}
+            optimisticResponse={{
+              removeStar: {
+                __typename: 'Mutation',
+                starrable: {
+                  __typename: 'Repository',
+                  id,
+                  viewerHasStarred: !viewerHasStarred,
+                },
+              },
+            }}
             update={updateRemoveStar}>
             {(removeStar) => (
               <Button
